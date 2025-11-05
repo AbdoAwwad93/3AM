@@ -1,0 +1,50 @@
+#startclock timeline
+
+import "calendar"
+
+schedule start() {
+ tickout "Clock started — Welcome to ChronoScript!";
+ finish 0;
+}
+
+schedule start() {
+ moment userMoment;
+ second seconds;
+ tickout "Enter current moment: ";
+ tickin userMoment;
+ tickout "Enter seconds since start: ";
+ tickin seconds;
+ tickout "At " + userMoment + ", " + seconds + " seconds have passed.";
+ finish 0;
+}
+
+schedule start() {
+ second elapsed = 12;
+ when (elapsed >= 10) {
+  tickout "Clock is running smoothly!";
+ }
+ otherwise {
+  tickout "Clock hasn't started yet.";
+ }
+}
+
+schedule start() {
+ loop (second i = 0; i < 5; i++) {
+  tickout "Tick " + i;
+ }
+}
+
+schedule startTimer(second timeLeft) {
+ tickout "Timer started...";
+ repeat (timeLeft > 0) {
+  tickout "Tick... " + timeLeft;
+  timeLeft = timeLeft - 1;
+ }
+ tickout "Timer finished!";
+ finish 0;
+}
+
+schedule start() {
+ startTimer(5);
+ finish 0;
+}
