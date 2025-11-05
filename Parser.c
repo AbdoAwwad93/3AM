@@ -189,7 +189,6 @@ void parse_finish() {
     }
 }
 
-// Parse when (if) statement
 void parse_when() {
     if (match(TOKEN_KEYWORD, "when")) {
         printf("When: condition(\n");
@@ -214,7 +213,6 @@ void parse_when() {
     }
 }
 
-// Parse otherwise (else) statement
 void parse_otherwise() {
     if (match(TOKEN_KEYWORD, "otherwise")) {
         printf("Otherwise:\n");
@@ -313,7 +311,7 @@ void parse_loop() {
     }
 }
 
-// Parse a block of statements
+
 void parse_block() {
     while (peek() && peek()->type != TOKEN_EOF && 
            !check(TOKEN_SYMBOL, "}")) {
@@ -403,15 +401,15 @@ void parse_statement() {
     }
 }
 
-// Parse function definition
+
 void parse_function() {
     if (match(TOKEN_KEYWORD, "schedule")) {
         if (match(TOKEN_IDENTIFIER, NULL)) {
             printf("Function: %s(", tokens[current - 1].value);
             if (match(TOKEN_SYMBOL, "(")) {
-                // Parse parameters
+              
                 if (!check(TOKEN_SYMBOL, ")")) {
-                    // Parameter: type identifier
+                    
                     if (match(TOKEN_KEYWORD, "second") || match(TOKEN_KEYWORD, "minute") ||
                          match(TOKEN_KEYWORD, "moment") ||
                         match(TOKEN_KEYWORD, "flag")) {
