@@ -122,13 +122,20 @@ int get_token_count() {
     return token_count;
 }
 
-void parse_program();
-
 int main(int argc, char* argv[])
 {
     if (argc < 2) {
-        printf("Usage: %s <filename>\n", argv[0]);
+        printf("Usage: %s <input.3am> [output.txt]\n", argv[0]);
         return 1;
+    }
+
+    // Optional: redirect stdout to an output file so all printf writes go there
+    if (argc >= 3 && argv[2] && argv[2][0] != '\0') {
+        FILE* out = freopen(argv[2], "w", stdout);
+        if (!out) {
+            fprintf(stderr, "Cannot open output file: %s\n", argv[2]);
+            return 1;
+        }
     }
 
     if (scan_File(argv[1])) {
