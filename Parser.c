@@ -34,7 +34,6 @@ int check(TokenType type, const char* value) {
            (value == NULL || strcmp(tokens[current].value, value) == 0);
 }
 
-// Forward declarations
 void parse_expression();
 void parse_term();
 void parse_factor();
@@ -42,6 +41,7 @@ void parse_statement();
 void parse_block();
 void parse_otherwise();
 void parse_when();
+void parse_startClock();
 
 // Expression parsing (handles arithmetic and comparisons)
 void parse_factor() {
@@ -148,12 +148,7 @@ void parse_variable_declaration() {
 void parse_tickout() {
     if (match(TOKEN_KEYWORD, "tickout")) {
         printf("Tickout: ");
-        // Handle string concatenation
         parse_expression();
-        while (match(TOKEN_SYMBOL, "+")) {
-            printf(" + ");
-            parse_expression();
-        }
         if (!match(TOKEN_SYMBOL, ";")) {
             printf("Error: expected ';' after tickout\n");
         }
@@ -361,11 +356,6 @@ void parse_statement() {
         parse_when();
         return;
     }
-    
-    if (check(TOKEN_KEYWORD, "otherwise")) {
-        parse_otherwise();
-        return;
-    }
  
     if (check(TOKEN_KEYWORD, "repeat")) {
         parse_repeat();
@@ -401,6 +391,50 @@ void parse_statement() {
     }
 }
 
+
+void parse_startClock() {
+    if (match(TOKEN_KEYWORD, "startClock")) {
+        printf("StartClock: main(");
+        if (match(TOKEN_SYMBOL, "(")) {
+            if (!check(TOKEN_SYMBOL, ")")) {
+                if (match(TOKEN_KEYWORD, "second") || match(TOKEN_KEYWORD, "minute") ||
+                    match(TOKEN_KEYWORD, "moment") ||
+                    match(TOKEN_KEYWORD, "flag")) {
+                    printf(" %s", tokens[current - 1].value);
+                    if (match(TOKEN_IDENTIFIER, NULL)) {
+                        printf(" %s", tokens[current - 1].value);
+                    }
+                }
+                while (match(TOKEN_SYMBOL, ",")) {
+                    printf(",");
+                    if (match(TOKEN_KEYWORD, "second") || match(TOKEN_KEYWORD, "minute") ||
+                        match(TOKEN_KEYWORD, "moment") ||
+                        match(TOKEN_KEYWORD, "flag")) {
+                        printf(" %s", tokens[current - 1].value);
+                        if (match(TOKEN_IDENTIFIER, NULL)) {
+                            printf(" %s", tokens[current - 1].value);
+                        }
+                    }
+                }
+            }
+            if (!match(TOKEN_SYMBOL, ")")) {
+                printf("Error: expected ')' after startClock parameters\n");
+            }
+            printf(")\n");
+            if (match(TOKEN_SYMBOL, "{")) {
+                parse_block();
+                if (!match(TOKEN_SYMBOL, "}")) {
+                    printf("Error: expected '}' after startClock body\n");
+                }
+            } else {
+                printf("Error: expected '{' after startClock()\n");
+            }
+        } else {
+            printf("Error: expected '(' after startClock\n");
+        }
+        printf("StartClockEnd\n");
+    }
+}
 
 void parse_function() {
     if (match(TOKEN_KEYWORD, "schedule")) {
@@ -457,13 +491,6 @@ void parse_program() {
             continue;
         }
         
-      
-        if (peek()->type == TOKEN_COMMENT) {
-            advance();
-            continue;
-        }
-        
-      
         if (check(TOKEN_KEYWORD, "timeline")) {
             advance();
             if (match(TOKEN_IDENTIFIER, NULL)) {
@@ -473,13 +500,7 @@ void parse_program() {
         }
         
         if (check(TOKEN_KEYWORD, "startClock")) {
-            advance();
-            if (match(TOKEN_SYMBOL, "(")) {
-                if (!match(TOKEN_SYMBOL, ")")) {
-                    printf("Error: expected ')' after startClock()\n");
-                }
-            }
-            printf("StartClock\n");
+            parse_startClock();
             continue;
         }
         
