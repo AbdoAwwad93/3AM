@@ -53,6 +53,5 @@ dkms.conf
 
 # debug information files
 *.dwo
-*.3am
 *.pdf
 *.md

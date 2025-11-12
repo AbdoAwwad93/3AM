@@ -1,0 +1,20 @@
+import "io"
+
+startClock() {
+ moment name;
+ second age;
+ 
+ tickout "Enter your name: ";
+ tickin name;
+ 
+ tickout "Enter your age in seconds: ";
+ tickin age;
+ when(age>=5){
+    tickout "your age is bigger";
+ }
+ otherwise{
+    tickout "your name is small"+5+"HI";
+ }
+ tickout "Hello, " + name + "! Age seconds = " + age;
+ finish 0;
+}

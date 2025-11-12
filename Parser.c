@@ -2,11 +2,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include "token.h"
+#include "ast.h"
 
 extern Token tokens[];
 extern int token_count;
 
 int current = 0;
+ASTNode* program_root = NULL;
+
+// Get the root of the parse tree
+ASTNode* get_program_root() {
+    return program_root;
+}
 
 Token* peek() {
     if (current >= token_count) return NULL;
@@ -34,70 +41,91 @@ int check(TokenType type, const char* value) {
            (value == NULL || strcmp(tokens[current].value, value) == 0);
 }
 
-void parse_expression();
-void parse_term();
-void parse_factor();
-void parse_statement();
-void parse_block();
-void parse_otherwise();
-void parse_when();
-void parse_startClock();
+// Forward declarations
+ASTNode* parse_expression();
+ASTNode* parse_term();
+ASTNode* parse_factor();
+ASTNode* parse_statement();
+ASTNode* parse_block();
+ASTNode* parse_otherwise();
+ASTNode* parse_when();
+ASTNode* parse_startClock();
+ASTNode* parse_function();
+ASTNode* parse_import();
+ASTNode* parse_variable_declaration();
+ASTNode* parse_tickout();
+ASTNode* parse_tickin();
+ASTNode* parse_finish();
+ASTNode* parse_repeat();
+ASTNode* parse_loop();
+ASTNode* parse_parameter_list();
 
 // Expression parsing (handles arithmetic and comparisons)
-void parse_factor() {
+ASTNode* parse_factor() {
     if (match(TOKEN_NUMBER, NULL)) {
-        printf("  Number(%s)\n", tokens[current - 1].value);
+        return create_number_node(tokens[current - 1].value);
     }
     else if (match(TOKEN_STRING, NULL)) {
-        printf("  String(\"%s\")\n", tokens[current - 1].value);
+        return create_string_node(tokens[current - 1].value);
     }
     else if (match(TOKEN_IDENTIFIER, NULL)) {
+        char* name = tokens[current - 1].value;
         // Check if it's a function call
         if (check(TOKEN_SYMBOL, "(")) {
-            printf("  FunctionCall(%s)\n", tokens[current - 1].value);
             match(TOKEN_SYMBOL, "(");
+            ASTNode* first_arg = NULL;
+            ASTNode* last_arg = NULL;
             if (!check(TOKEN_SYMBOL, ")")) {
-                parse_expression();
+                first_arg = parse_expression();
+                last_arg = first_arg;
                 while (match(TOKEN_SYMBOL, ",")) {
-                    parse_expression();
+                    ASTNode* next_arg = parse_expression();
+                    last_arg->next = next_arg;
+                    last_arg = next_arg;
                 }
             }
             if (!match(TOKEN_SYMBOL, ")")) {
                 printf("Error: expected ')' in function call\n");
             }
+            return create_function_call_node(name, first_arg);
         } else {
-            printf("  Identifier(%s)\n", tokens[current - 1].value);
+            return create_identifier_node(name);
         }
     }
     else if (match(TOKEN_SYMBOL, "(")) {
-        printf("  ExpressionGroup(\n");
-        parse_expression();
+        ASTNode* expr = parse_expression();
         if (!match(TOKEN_SYMBOL, ")")) {
             printf("Error: expected ')'\n");
         }
-        printf("  )\n");
+        ASTNode* group = create_ast_node(AST_GROUP);
+        group->expression = expr;
+        return group;
     }
     else {
         if (peek()) {
             printf("Error: unexpected token '%s'\n", peek()->value);
             advance();
         }
+        return NULL;
     }
 }
 
-void parse_term() {
-    parse_factor();
+ASTNode* parse_term() {
+    ASTNode* left = parse_factor();
     while (match(TOKEN_SYMBOL, "*") || match(TOKEN_SYMBOL, "/")) {
-        printf("    Operator(%s)\n", tokens[current - 1].value);
-        parse_factor();
+        char* op = tokens[current - 1].value;
+        ASTNode* right = parse_factor();
+        left = create_binary_op_node(op, left, right);
     }
+    return left;
 }
 
-void parse_expression() {
-    parse_term();
+ASTNode* parse_expression() {
+    ASTNode* left = parse_term();
     while (match(TOKEN_SYMBOL, "+") || match(TOKEN_SYMBOL, "-")) {
-        printf("    Operator(%s)\n", tokens[current - 1].value);
-        parse_term();
+        char* op = tokens[current - 1].value;
+        ASTNode* right = parse_term();
+        left = create_binary_op_node(op, left, right);
     }
     // Handle comparison operators (check after arithmetic)
     if (current < token_count && tokens[current].type == TOKEN_SYMBOL) {
@@ -106,158 +134,178 @@ void parse_expression() {
             strcmp(op, "==") == 0 || strcmp(op, "!=") == 0 ||
             strcmp(op, ">") == 0 || strcmp(op, "<") == 0) {
             advance();
-            printf("    Comparison(%s)\n", tokens[current - 1].value);
-            parse_term();
+            ASTNode* right = parse_term();
+            left = create_comparison_op_node(op, left, right);
         }
     }
+    return left;
 }
 
-void parse_import() {
+ASTNode* parse_import() {
     if (match(TOKEN_KEYWORD, "import")) {
         if (match(TOKEN_STRING, NULL)) {
-            printf("Import: %s\n", tokens[current - 1].value);
+            return create_import_node(tokens[current - 1].value);
         } else {
             printf("Error: expected string after 'import'\n");
+            return NULL;
         }
     }
+    return NULL;
 }
 
 // Parse variable declaration
-void parse_variable_declaration() {
+ASTNode* parse_variable_declaration() {
     if (match(TOKEN_KEYWORD, "second") || match(TOKEN_KEYWORD, "minute") ||
          match(TOKEN_KEYWORD, "moment") ||
          match(TOKEN_KEYWORD, "flag")) {
-        printf("VariableDecl: type=%s ", tokens[current - 1].value);
+        char* type = tokens[current - 1].value;
         if (match(TOKEN_IDENTIFIER, NULL)) {
-            printf("name=%s", tokens[current - 1].value);
+            char* name = tokens[current - 1].value;
+            ASTNode* init = NULL;
             if (match(TOKEN_SYMBOL, "=")) {
-                printf(" = ");
-                parse_expression();
+                init = parse_expression();
             }
             if (!match(TOKEN_SYMBOL, ";")) {
                 printf("Error: expected ';' after variable declaration\n");
             }
-            printf("\n");
+            return create_variable_decl_node(type, name, init);
         } else {
             printf("Error: expected identifier\n");
+            return NULL;
         }
     }
+    return NULL;
 }
 
 // Parse tickout (output) statement
-void parse_tickout() {
+ASTNode* parse_tickout() {
     if (match(TOKEN_KEYWORD, "tickout")) {
-        printf("Tickout: ");
-        parse_expression();
+        ASTNode* expr = parse_expression();
         if (!match(TOKEN_SYMBOL, ";")) {
             printf("Error: expected ';' after tickout\n");
         }
-        printf("\n");
+        return create_tickout_node(expr);
     }
+    return NULL;
 }
 
 // Parse tickin (input) statement
-void parse_tickin() {
+ASTNode* parse_tickin() {
     if (match(TOKEN_KEYWORD, "tickin")) {
         if (match(TOKEN_IDENTIFIER, NULL)) {
-            printf("Tickin: %s\n", tokens[current - 1].value);
+            char* name = tokens[current - 1].value;
             if (!match(TOKEN_SYMBOL, ";")) {
                 printf("Error: expected ';' after tickin\n");
             }
+            return create_tickin_node(name);
         } else {
             printf("Error: expected identifier after tickin\n");
+            return NULL;
         }
     }
+    return NULL;
 }
 
 // Parse finish (return) statement
-void parse_finish() {
+ASTNode* parse_finish() {
     if (match(TOKEN_KEYWORD, "finish")) {
-        printf("Finish: ");
+        ASTNode* expr = NULL;
         if (!check(TOKEN_SYMBOL, ";")) {
-            parse_expression();
+            expr = parse_expression();
         }
         if (!match(TOKEN_SYMBOL, ";")) {
             printf("Error: expected ';' after finish\n");
         }
-        printf("\n");
+        return create_finish_node(expr);
     }
+    return NULL;
 }
 
-void parse_when() {
+ASTNode* parse_when() {
     if (match(TOKEN_KEYWORD, "when")) {
-        printf("When: condition(\n");
+        ASTNode* condition = NULL;
         if (match(TOKEN_SYMBOL, "(")) {
-            parse_expression();
+            condition = parse_expression();
             if (!match(TOKEN_SYMBOL, ")")) {
                 printf("Error: expected ')' after when condition\n");
             }
         }
-        printf(") then:\n");
+        ASTNode* body = NULL;
         if (match(TOKEN_SYMBOL, "{")) {
-            parse_block();
+            body = parse_block();
             if (!match(TOKEN_SYMBOL, "}")) {
                 printf("Error: expected '}' after when block\n");
             }
         }
+        ASTNode* otherwise = NULL;
         // Check for otherwise
         if (check(TOKEN_KEYWORD, "otherwise")) {
-            parse_otherwise();
+            otherwise = parse_otherwise();
         }
-        printf("WhenEnd\n");
+        return create_when_node(condition, body, otherwise);
     }
+    return NULL;
 }
 
-void parse_otherwise() {
+ASTNode* parse_otherwise() {
     if (match(TOKEN_KEYWORD, "otherwise")) {
-        printf("Otherwise:\n");
+        ASTNode* body = NULL;
         if (match(TOKEN_SYMBOL, "{")) {
-            parse_block();
+            body = parse_block();
             if (!match(TOKEN_SYMBOL, "}")) {
                 printf("Error: expected '}' after otherwise block\n");
             }
         }
+        ASTNode* node = create_ast_node(AST_OTHERWISE);
+        node->body = body;
+        return node;
     }
+    return NULL;
 }
 
 // Parse repeat (while) loop
-void parse_repeat() {
+ASTNode* parse_repeat() {
     if (match(TOKEN_KEYWORD, "repeat")) {
-        printf("Repeat: condition(\n");
+        ASTNode* condition = NULL;
         if (match(TOKEN_SYMBOL, "(")) {
-            parse_expression();
+            condition = parse_expression();
             if (!match(TOKEN_SYMBOL, ")")) {
                 printf("Error: expected ')' after repeat condition\n");
             }
         }
-        printf(") do:\n");
+        ASTNode* body = NULL;
         if (match(TOKEN_SYMBOL, "{")) {
-            parse_block();
+            body = parse_block();
             if (!match(TOKEN_SYMBOL, "}")) {
                 printf("Error: expected '}' after repeat block\n");
             }
         }
-        printf("RepeatEnd\n");
+        return create_repeat_node(condition, body);
     }
+    return NULL;
 }
 
 // Parse loop (for) loop
-void parse_loop() {
+ASTNode* parse_loop() {
     if (match(TOKEN_KEYWORD, "loop")) {
-        printf("Loop: for(\n");
+        ASTNode* init = NULL;
+        ASTNode* condition = NULL;
+        ASTNode* increment = NULL;
+        
         if (match(TOKEN_SYMBOL, "(")) {
             // Parse initialization (type identifier = value;)
             if (!check(TOKEN_SYMBOL, ";")) {
                 if (match(TOKEN_KEYWORD, "second") || match(TOKEN_KEYWORD, "minute") ||
                     match(TOKEN_KEYWORD, "moment") ||
                     match(TOKEN_KEYWORD, "flag")) {
-                    printf("  InitType: %s ", tokens[current - 1].value);
+                    char* type = tokens[current - 1].value;
                     if (match(TOKEN_IDENTIFIER, NULL)) {
-                        printf("InitVar: %s", tokens[current - 1].value);
+                        char* name = tokens[current - 1].value;
+                        ASTNode* init_expr = NULL;
                         if (match(TOKEN_SYMBOL, "=")) {
-                            printf(" = ");
-                            parse_expression();
+                            init_expr = parse_expression();
                         }
+                        init = create_variable_decl_node(type, name, init_expr);
                     }
                 }
             }
@@ -266,15 +314,13 @@ void parse_loop() {
             }
             // Parse condition
             if (!check(TOKEN_SYMBOL, ";")) {
-                printf("  Condition: ");
-                parse_expression();
+                condition = parse_expression();
             }
             if (!match(TOKEN_SYMBOL, ";")) {
                 printf("Error: expected ';' in loop condition\n");
             }
             // Parse increment (handle i++ or i = i + 1 style)
             if (!check(TOKEN_SYMBOL, ")")) {
-                printf("  Increment: ");
                 // Check for postfix increment (identifier++)
                 if (peek()->type == TOKEN_IDENTIFIER && 
                     current + 1 < token_count &&
@@ -284,206 +330,233 @@ void parse_loop() {
                     tokens[current + 2].type == TOKEN_SYMBOL &&
                     strcmp(tokens[current + 2].value, "+") == 0) {
                     advance(); // identifier
+                    char* name = tokens[current - 1].value;
                     advance(); // +
                     advance(); // +
-                    printf("PostfixIncrement(%s)\n", tokens[current - 3].value);
+                    // Create a postfix increment node (simplified as assignment)
+                    ASTNode* id = create_identifier_node(name);
+                    ASTNode* one = create_number_node("1");
+                    increment = create_binary_op_node("+", id, one);
                 } else {
-                    parse_expression();
+                    increment = parse_expression();
                 }
             }
             if (!match(TOKEN_SYMBOL, ")")) {
                 printf("Error: expected ')' after loop header\n");
             }
         }
-        printf(") do:\n");
+        ASTNode* body = NULL;
         if (match(TOKEN_SYMBOL, "{")) {
-            parse_block();
+            body = parse_block();
             if (!match(TOKEN_SYMBOL, "}")) {
                 printf("Error: expected '}' after loop block\n");
             }
         }
-        printf("LoopEnd\n");
+        return create_loop_node(init, condition, increment, body);
     }
+    return NULL;
 }
 
 
-void parse_block() {
+ASTNode* parse_block() {
+    ASTNode* block = create_block_node(NULL);
+    ASTNode* first_stmt = NULL;
+    ASTNode* last_stmt = NULL;
+    
     while (peek() && peek()->type != TOKEN_EOF && 
            !check(TOKEN_SYMBOL, "}")) {
-        parse_statement();
+        ASTNode* stmt = parse_statement();
+        if (stmt) {
+            if (!first_stmt) {
+                first_stmt = stmt;
+                last_stmt = stmt;
+            } else {
+                last_stmt->next = stmt;
+                last_stmt = stmt;
+            }
+        }
     }
+    
+    block->body = first_stmt;
+    return block;
 }
 
 
-void parse_statement() {
-    if (current >= token_count) return;
+ASTNode* parse_statement() {
+    if (current >= token_count) return NULL;
     
-
     if (peek()->type == TOKEN_COMMENT) {
         advance();
-        return;
+        return NULL;
     }
     
-
     if (check(TOKEN_KEYWORD, "import")) {
-        parse_import();
-        return;
+        return parse_import();
     }
     
     if (check(TOKEN_KEYWORD, "second") || check(TOKEN_KEYWORD, "minute") ||
          check(TOKEN_KEYWORD, "moment") ||
         check(TOKEN_KEYWORD, "flag")) {
-        parse_variable_declaration();
-        return;
+        return parse_variable_declaration();
     }
     
     if (check(TOKEN_KEYWORD, "tickout")) {
-        parse_tickout();
-        return;
+        return parse_tickout();
     }
     
     if (check(TOKEN_KEYWORD, "tickin")) {
-        parse_tickin();
-        return;
+        return parse_tickin();
     }
     
     if (check(TOKEN_KEYWORD, "finish")) {
-        parse_finish();
-        return;
+        return parse_finish();
     }
     
     if (check(TOKEN_KEYWORD, "when")) {
-        parse_when();
-        return;
+        return parse_when();
     }
  
     if (check(TOKEN_KEYWORD, "repeat")) {
-        parse_repeat();
-        return;
+        return parse_repeat();
     }
     
     if (check(TOKEN_KEYWORD, "loop")) {
-        parse_loop();
-        return;
+        return parse_loop();
     }
-    
     
     if (peek()->type == TOKEN_IDENTIFIER) {
         Token* ident = peek();
         advance();
         if (check(TOKEN_SYMBOL, "=")) {
-            printf("Assignment: %s = ", ident->value);
             advance(); 
-            parse_expression();
+            ASTNode* expr = parse_expression();
             if (!match(TOKEN_SYMBOL, ";")) {
                 printf("Error: expected ';' after assignment\n");
             }
-            printf("\n");
-            return;
+            return create_assignment_node(ident->value, expr);
         } else {
             current--; 
         }
     }
     
-    parse_expression();
+    ASTNode* expr = parse_expression();
     if (match(TOKEN_SYMBOL, ";")) {
-        printf("ExpressionStatement\n");
+        ASTNode* stmt = create_ast_node(AST_EXPRESSION_STMT);
+        stmt->expression = expr;
+        return stmt;
     }
+    return expr;
 }
 
 
-void parse_startClock() {
-    if (match(TOKEN_KEYWORD, "startClock")) {
-        printf("StartClock: main(");
-        if (match(TOKEN_SYMBOL, "(")) {
-            if (!check(TOKEN_SYMBOL, ")")) {
+ASTNode* parse_parameter_list() {
+    ASTNode* first_param = NULL;
+    ASTNode* last_param = NULL;
+    
+    if (!check(TOKEN_SYMBOL, ")")) {
+        if (match(TOKEN_KEYWORD, "second") || match(TOKEN_KEYWORD, "minute") ||
+            match(TOKEN_KEYWORD, "moment") ||
+            match(TOKEN_KEYWORD, "flag")) {
+            char* type = tokens[current - 1].value;
+            char* name = NULL;
+            if (match(TOKEN_IDENTIFIER, NULL)) {
+                name = tokens[current - 1].value;
+            }
+            ASTNode* param = create_ast_node(AST_PARAMETER);
+            if (type) {
+                param->var_type = (char*)malloc(strlen(type) + 1);
+                strcpy(param->var_type, type);
+            }
+            if (name) {
+                param->value = (char*)malloc(strlen(name) + 1);
+                strcpy(param->value, name);
+            }
+            first_param = param;
+            last_param = param;
+            
+            while (match(TOKEN_SYMBOL, ",")) {
                 if (match(TOKEN_KEYWORD, "second") || match(TOKEN_KEYWORD, "minute") ||
                     match(TOKEN_KEYWORD, "moment") ||
                     match(TOKEN_KEYWORD, "flag")) {
-                    printf(" %s", tokens[current - 1].value);
+                    type = tokens[current - 1].value;
+                    name = NULL;
                     if (match(TOKEN_IDENTIFIER, NULL)) {
-                        printf(" %s", tokens[current - 1].value);
+                        name = tokens[current - 1].value;
                     }
-                }
-                while (match(TOKEN_SYMBOL, ",")) {
-                    printf(",");
-                    if (match(TOKEN_KEYWORD, "second") || match(TOKEN_KEYWORD, "minute") ||
-                        match(TOKEN_KEYWORD, "moment") ||
-                        match(TOKEN_KEYWORD, "flag")) {
-                        printf(" %s", tokens[current - 1].value);
-                        if (match(TOKEN_IDENTIFIER, NULL)) {
-                            printf(" %s", tokens[current - 1].value);
-                        }
+                    param = create_ast_node(AST_PARAMETER);
+                    if (type) {
+                        param->var_type = (char*)malloc(strlen(type) + 1);
+                        strcpy(param->var_type, type);
                     }
+                    if (name) {
+                        param->value = (char*)malloc(strlen(name) + 1);
+                        strcpy(param->value, name);
+                    }
+                    last_param->next = param;
+                    last_param = param;
                 }
             }
+        }
+    }
+    return first_param;
+}
+
+ASTNode* parse_startClock() {
+    if (match(TOKEN_KEYWORD, "startClock")) {
+        ASTNode* params = NULL;
+        if (match(TOKEN_SYMBOL, "(")) {
+            params = parse_parameter_list();
             if (!match(TOKEN_SYMBOL, ")")) {
                 printf("Error: expected ')' after startClock parameters\n");
             }
-            printf(")\n");
+            ASTNode* body = NULL;
             if (match(TOKEN_SYMBOL, "{")) {
-                parse_block();
+                body = parse_block();
                 if (!match(TOKEN_SYMBOL, "}")) {
                     printf("Error: expected '}' after startClock body\n");
                 }
             } else {
                 printf("Error: expected '{' after startClock()\n");
             }
+            return create_startclock_node(params, body);
         } else {
             printf("Error: expected '(' after startClock\n");
+            return NULL;
         }
-        printf("StartClockEnd\n");
     }
+    return NULL;
 }
 
-void parse_function() {
+ASTNode* parse_function() {
     if (match(TOKEN_KEYWORD, "schedule")) {
         if (match(TOKEN_IDENTIFIER, NULL)) {
-            printf("Function: %s(", tokens[current - 1].value);
+            char* name = tokens[current - 1].value;
+            ASTNode* params = NULL;
             if (match(TOKEN_SYMBOL, "(")) {
-              
-                if (!check(TOKEN_SYMBOL, ")")) {
-                    
-                    if (match(TOKEN_KEYWORD, "second") || match(TOKEN_KEYWORD, "minute") ||
-                         match(TOKEN_KEYWORD, "moment") ||
-                        match(TOKEN_KEYWORD, "flag")) {
-                        printf(" %s", tokens[current - 1].value);
-                        if (match(TOKEN_IDENTIFIER, NULL)) {
-                            printf(" %s", tokens[current - 1].value);
-                        }
-                    }
-                    while (match(TOKEN_SYMBOL, ",")) {
-                        printf(",");
-                        if (match(TOKEN_KEYWORD, "second") || match(TOKEN_KEYWORD, "minute") ||
-                             match(TOKEN_KEYWORD, "moment") ||
-                            match(TOKEN_KEYWORD, "flag")) {
-                            printf(" %s", tokens[current - 1].value);
-                            if (match(TOKEN_IDENTIFIER, NULL)) {
-                                printf(" %s", tokens[current - 1].value);
-                            }
-                        }
-                    }
-                }
+                params = parse_parameter_list();
                 if (!match(TOKEN_SYMBOL, ")")) {
                     printf("Error: expected ')' after function parameters\n");
                 }
             }
-            printf(")\n");
+            ASTNode* body = NULL;
             if (match(TOKEN_SYMBOL, "{")) {
-                parse_block();
+                body = parse_block();
                 if (!match(TOKEN_SYMBOL, "}")) {
                     printf("Error: expected '}' after function body\n");
                 }
             }
-            printf("FunctionEnd: %s\n", tokens[current - 2].value);
+            return create_function_node(name, params, body);
         }
     }
+    return NULL;
 }
 
 
-void parse_program() {
+ASTNode* parse_program() {
     current = 0;
-    printf("=== Parsing 3AM Script ===\n\n");
+    ASTNode* program = create_program_node(NULL);
+    ASTNode* first_stmt = NULL;
+    ASTNode* last_stmt = NULL;
     
     while (peek() && peek()->type != TOKEN_EOF) {
         if (peek()->type == TOKEN_COMMENT) {
@@ -494,23 +567,59 @@ void parse_program() {
         if (check(TOKEN_KEYWORD, "timeline")) {
             advance();
             if (match(TOKEN_IDENTIFIER, NULL)) {
-                printf("Timeline: %s\n", tokens[current - 1].value);
+                ASTNode* timeline = create_timeline_node(tokens[current - 1].value);
+                if (!first_stmt) {
+                    first_stmt = timeline;
+                    last_stmt = timeline;
+                } else {
+                    last_stmt->next = timeline;
+                    last_stmt = timeline;
+                }
             }
             continue;
         }
         
         if (check(TOKEN_KEYWORD, "startClock")) {
-            parse_startClock();
+            ASTNode* startclock = parse_startClock();
+            if (startclock) {
+                if (!first_stmt) {
+                    first_stmt = startclock;
+                    last_stmt = startclock;
+                } else {
+                    last_stmt->next = startclock;
+                    last_stmt = startclock;
+                }
+            }
             continue;
         }
         
         if (check(TOKEN_KEYWORD, "schedule")) {
-            parse_function();
+            ASTNode* func = parse_function();
+            if (func) {
+                if (!first_stmt) {
+                    first_stmt = func;
+                    last_stmt = func;
+                } else {
+                    last_stmt->next = func;
+                    last_stmt = func;
+                }
+            }
             continue;
         }
 
-        parse_statement();
+        ASTNode* stmt = parse_statement();
+        if (stmt) {
+            if (!first_stmt) {
+                first_stmt = stmt;
+                last_stmt = stmt;
+            } else {
+                last_stmt->next = stmt;
+                last_stmt = stmt;
+            }
+        }
     }
     
-    printf("\n=== Parsing Complete ===\n");
+    program->body = first_stmt;
+    program_root = program;
+    return program;
 }

@@ -3,8 +3,9 @@
 #include <string.h>
 #include <ctype.h>
 #include "token.h"
+#include "ast.h"
 
-void parse_program();
+ASTNode* parse_program();
 
 int is_keyword(const char* word) {
     const char* keywords[] = {
@@ -139,7 +140,12 @@ int main(int argc, char* argv[])
     }
 
     if (scan_File(argv[1])) {
-        parse_program();
+        ASTNode* root = parse_program();
+        if (root) {
+            printf("\n=== AST ===\n");
+            print_ast(root, 0);
+            free_ast(root);
+        }
     }
     return 0;
 }
