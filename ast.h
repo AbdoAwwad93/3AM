@@ -5,8 +5,9 @@
 
 // AST Node Types
 typedef enum {
-    // Program structure
+    // Program structure start node
     AST_PROGRAM,
+    // Namespace
     AST_TIMELINE,
     
     // Statements

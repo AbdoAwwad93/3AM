@@ -1,8 +1,8 @@
 import "io"
 
-startClock() {
+minute startClock() {
  moment name;
- second age;
+ minute  age= 4.5;
  
  tickout "Enter your name: ";
  tickin name;
