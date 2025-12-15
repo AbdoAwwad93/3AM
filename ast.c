@@ -158,9 +158,13 @@ ASTNode* create_loop_node(ASTNode* init, ASTNode* condition, ASTNode* increment,
     return node;
 }
 
-ASTNode* create_function_node(const char* name, ASTNode* params, ASTNode* body) {
+ASTNode* create_function_node(const char* return_type, const char* name, ASTNode* params, ASTNode* body) {
     ASTNode* node = create_ast_node(AST_FUNCTION);
     if (node) {
+        if (return_type) {
+             node->var_type = (char*)malloc(strlen(return_type) + 1);
+             strcpy(node->var_type, return_type);
+        }
         if (name) {
             node->value = (char*)malloc(strlen(name) + 1);
             strcpy(node->value, name);
@@ -171,9 +175,13 @@ ASTNode* create_function_node(const char* name, ASTNode* params, ASTNode* body) 
     return node;
 }
 
-ASTNode* create_startclock_node(ASTNode* params, ASTNode* body) {
+ASTNode* create_startclock_node(const char* return_type, ASTNode* params, ASTNode* body) {
     ASTNode* node = create_ast_node(AST_STARTCLOCK);
     if (node) {
+        if (return_type) {
+             node->var_type = (char*)malloc(strlen(return_type) + 1);
+             strcpy(node->var_type, return_type);
+        }
         node->params = params;
         node->body = body;
     }

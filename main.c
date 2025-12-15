@@ -4,6 +4,7 @@
 #include "token.h"
 #include "ast.h"
 #include "semantic.h"
+#include "codegen.h"
 
 extern int scan_File(const char* filename);
 extern Token* get_tokens(void);
@@ -45,6 +46,8 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
+    // Output file handling moved to code generation phase
+    /* 
     FILE* output_file = NULL;
     if (argc >= 3 && argv[2] && argv[2][0] != '\0') {
         output_file = freopen(argv[2], "w", stdout);
@@ -53,6 +56,8 @@ int main(int argc, char* argv[]) {
             return 1;
         }
     }
+    */
+    FILE* output_file = NULL; // Keep variable for compatibility with existing cleanup code
     
     print_compilation_header(argv[1]);
     
@@ -88,6 +93,16 @@ int main(int argc, char* argv[]) {
     if (semantic_result == 0) {
         printf("Status: SUCCESS\n");
         printf("All phases completed without errors.\n");
+        
+        if (output_file || (argc >= 3)) {
+             const char* out_name = (argc >= 3) ? argv[2] : "output.c";
+             printf("\nGenerating code to: %s\n", out_name);
+             if (generate_code(root, out_name) == 0) {
+                 printf("Code generation successful.\n");
+             } else {
+                 printf("Code generation failed.\n");
+             }
+        }
     } else {
         printf("Status: FAILED\n");
         printf("Semantic errors: %d\n", semantic_result);

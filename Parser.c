@@ -49,7 +49,7 @@ ASTNode* parse_statement();
 ASTNode* parse_block();
 ASTNode* parse_otherwise();
 ASTNode* parse_when();
-ASTNode* parse_startClock();
+ASTNode* parse_startClock(char* return_type);
 ASTNode* parse_function();
 ASTNode* parse_import();
 ASTNode* parse_variable_declaration();
@@ -501,7 +501,7 @@ ASTNode* parse_parameter_list() {
     return first_param;
 }
 
-ASTNode* parse_startClock() {
+ASTNode* parse_startClock(char* return_type) {
     if (match(TOKEN_KEYWORD, "startClock")) {
         ASTNode* params = NULL;
         if (match(TOKEN_SYMBOL, "(")) {
@@ -518,7 +518,7 @@ ASTNode* parse_startClock() {
             } else {
                 printf("Error: expected '{' after startClock()\n");
             }
-            return create_startclock_node(params, body);
+            return create_startclock_node(return_type, params, body);
         } else {
             printf("Error: expected '(' after startClock\n");
             return NULL;
@@ -529,6 +529,14 @@ ASTNode* parse_startClock() {
 
 ASTNode* parse_function() {
     if (match(TOKEN_KEYWORD, "schedule")) {
+        char* return_type = NULL;
+        // Capture return type if present
+        if (check(TOKEN_KEYWORD, "second") || check(TOKEN_KEYWORD, "minute") ||
+            check(TOKEN_KEYWORD, "moment") || check(TOKEN_KEYWORD, "flag")) {
+            return_type = tokens[current].value;
+            advance();
+        }
+
         if (match(TOKEN_IDENTIFIER, NULL)) {
             char* name = tokens[current - 1].value;
             ASTNode* params = NULL;
@@ -545,7 +553,7 @@ ASTNode* parse_function() {
                     printf("Error: expected '}' after function body\n");
                 }
             }
-            return create_function_node(name, params, body);
+            return create_function_node(return_type, name, params, body);
         }
     }
     return NULL;
@@ -579,8 +587,30 @@ ASTNode* parse_program() {
             continue;
         }
         
+        // Handle typed startClock (e.g. "minute startClock")
+        if ((check(TOKEN_KEYWORD, "second") || check(TOKEN_KEYWORD, "minute") ||
+             check(TOKEN_KEYWORD, "moment") || check(TOKEN_KEYWORD, "flag")) &&
+            current + 1 < token_count &&
+            tokens[current + 1].type == TOKEN_KEYWORD &&
+            strcmp(tokens[current + 1].value, "startClock") == 0) {
+            
+            char* type = tokens[current].value;
+            advance(); // consume type
+            ASTNode* startclock = parse_startClock(type);
+            if (startclock) {
+                if (!first_stmt) {
+                    first_stmt = startclock;
+                    last_stmt = startclock;
+                } else {
+                    last_stmt->next = startclock;
+                    last_stmt = startclock;
+                }
+            }
+            continue;
+        }
+        
         if (check(TOKEN_KEYWORD, "startClock")) {
-            ASTNode* startclock = parse_startClock();
+            ASTNode* startclock = parse_startClock(NULL);
             if (startclock) {
                 if (!first_stmt) {
                     first_stmt = startclock;
