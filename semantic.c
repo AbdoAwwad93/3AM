@@ -9,6 +9,7 @@ int strict_finish_in_functions = 1;
 static int semantic_errors = 0;
 static Type current_function_return_type = TYPE_VOID;
 static const char *current_function_name = NULL;
+static int current_function_has_return = 0;
 
 static int check_statement(ASTNode *node);
 static Type check_expression(ASTNode *node);
@@ -42,6 +43,19 @@ static Type check_number_type(const char *value) {
     }
     
     return TYPE_INTEGER;
+}
+
+static int check_not_void(ASTNode *node, Type t, const char *context) {
+    if (t == TYPE_VOID) {
+        if (node && node->type == AST_FUNCTION_CALL) {
+            report_error(node, "Cannot use 'void' return value of function '%s' in %s", 
+                    node->value, context);
+        } else {
+            report_error(node, "Cannot use 'void' value in %s", context);
+        }
+        return 0;
+    }
+    return 1;
 }
 
 static Type check_expression(ASTNode *node) {
@@ -130,6 +144,11 @@ static Type check_expression(ASTNode *node) {
             Type left_type = check_expression(node->left);
             Type right_type = check_expression(node->right);
             
+            if (!check_not_void(node->left, left_type, "binary expression") ||
+                !check_not_void(node->right, right_type, "binary expression")) {
+                return TYPE_UNKNOWN;
+            }
+
             if (strcmp(node->value, "+") == 0) {
                 if (left_type == TYPE_STRING || right_type == TYPE_STRING) {
                     return TYPE_STRING;
@@ -161,6 +180,11 @@ static Type check_expression(ASTNode *node) {
             Type left_type = check_expression(node->left);
             Type right_type = check_expression(node->right);
             
+            if (!check_not_void(node->left, left_type, "comparison") ||
+                !check_not_void(node->right, right_type, "comparison")) {
+                return TYPE_UNKNOWN;
+            }
+
             int left_is_numeric = (left_type == TYPE_INTEGER || left_type == TYPE_FLOAT);
             int right_is_numeric = (right_type == TYPE_INTEGER || right_type == TYPE_FLOAT);
             
@@ -212,14 +236,16 @@ static int check_statement(ASTNode *node) {
         case AST_STARTCLOCK: {
             Type prev_return_type = current_function_return_type;
             const char *prev_func_name = current_function_name;
+            int prev_has_return = current_function_has_return;
             
             if (node->var_type) {
                 current_function_return_type = make_type_from_string(node->var_type);
             } else {
-                current_function_return_type = TYPE_FLOAT; // Default to minute
+                current_function_return_type = TYPE_VOID; // Default changed to void for startClock if no type
             }
             
             current_function_name = "startClock";
+            current_function_has_return = 0;
 
             enter_scope();
             // Declare parameters
@@ -234,8 +260,14 @@ static int check_statement(ASTNode *node) {
             }
             exit_scope();
 
+            if (current_function_return_type != TYPE_VOID && !current_function_has_return) {
+                report_error(node, "Function 'startClock' with return type '%s' is missing a return (finish) statement", 
+                        type_to_string(current_function_return_type));
+            }
+
             current_function_return_type = prev_return_type;
             current_function_name = prev_func_name;
+            current_function_has_return = prev_has_return;
             break;
         }
         
@@ -255,6 +287,10 @@ static int check_statement(ASTNode *node) {
             if (node->expression) {
                 Type init_type = check_expression(node->expression);
                 
+                if (!check_not_void(node->expression, init_type, "variable initializer")) {
+                    break;
+                }
+
                 if (init_type != TYPE_UNKNOWN && decl_type != TYPE_UNKNOWN) {
                     if (!types_compatible(decl_type, init_type)) {
                         if (decl_type == TYPE_INTEGER && init_type == TYPE_FLOAT) {
@@ -282,6 +318,9 @@ static int check_statement(ASTNode *node) {
             }
             
             Type rhs_type = check_expression(node->expression);
+            if (!check_not_void(node->expression, rhs_type, "assignment")) {
+                break;
+            }
             if (rhs_type != TYPE_UNKNOWN && s->type != TYPE_UNKNOWN) {
                 if (!types_compatible(s->type, rhs_type)) {
                     report_error(node, "Type mismatch in assignment to '%s'", node->value);
@@ -296,8 +335,11 @@ static int check_statement(ASTNode *node) {
             
             Type prev_return_type = current_function_return_type;
             const char *prev_func_name = current_function_name;
+            int prev_has_return = current_function_has_return;
+
             current_function_return_type = return_type;
             current_function_name = node->value;
+            current_function_has_return = 0;
             
             enter_scope();
             for (ASTNode *p = node->params; p; p = p->next) {
@@ -307,14 +349,22 @@ static int check_statement(ASTNode *node) {
             check_statement(node->body);
             exit_scope();
             
+            if (current_function_return_type != TYPE_VOID && !current_function_has_return) {
+                report_error(node, "Function '%s' with return type '%s' is missing a return (finish) statement", 
+                        node->value, type_to_string(current_function_return_type));
+            }
+
             current_function_return_type = prev_return_type;
             current_function_name = prev_func_name;
+            current_function_has_return = prev_has_return;
             break;
         }
         
-        case AST_TICKOUT:
-            check_expression(node->expression);
+        case AST_TICKOUT: {
+            Type t = check_expression(node->expression);
+            check_not_void(node->expression, t, "tickout statement");
             break;
+        }
             
         case AST_TICKIN:
             if (!lookup_symbol(node->value)) {
@@ -356,13 +406,18 @@ static int check_statement(ASTNode *node) {
             break;
 
         case AST_FINISH:
+            current_function_has_return = 1;
             if (node->expression) {
                 Type expr_type = check_expression(node->expression);
                 if (current_function_return_type != TYPE_UNKNOWN && !types_compatible(current_function_return_type, expr_type)) {
-                    report_error(node, "Return type mismatch in function '%s'", current_function_name);
+                    report_error(node, "Return type mismatch in function '%s': expected %s but got %s", 
+                            current_function_name, 
+                            type_to_string(current_function_return_type),
+                            type_to_string(expr_type));
                 }
             } else if (current_function_return_type != TYPE_VOID && current_function_return_type != TYPE_UNKNOWN) {
-                report_error(node, "Function '%s' expects return value", current_function_name);
+                report_error(node, "Function '%s' expects return value of type %s", 
+                        current_function_name, type_to_string(current_function_return_type));
             }
             break;
 

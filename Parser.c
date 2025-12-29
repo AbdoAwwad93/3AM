@@ -8,6 +8,7 @@ extern Token tokens[];
 extern int token_count;
 
 int current = 0;
+int syntax_errors = 0;
 ASTNode* program_root = NULL;
 
 // Get the root of the parse tree
@@ -95,7 +96,8 @@ ASTNode* parse_factor() {
                 }
             }
             if (!match(TOKEN_SYMBOL, ")")) {
-                printf("Error: expected ')' in function call\n");
+                printf("Error at line %d: expected ')' in function call\n", tokens[current - 1].line);
+                syntax_errors++;
             }
             ASTNode* n = create_function_call_node(name, first_arg);
             n->line = line;
@@ -109,7 +111,8 @@ ASTNode* parse_factor() {
     else if (match(TOKEN_SYMBOL, "(")) {
         ASTNode* expr = parse_expression();
         if (!match(TOKEN_SYMBOL, ")")) {
-            printf("Error: expected ')'\n");
+            printf("Error at line %d: expected ')'\n", tokens[current - 1].line);
+            syntax_errors++;
         }
         ASTNode* group = create_ast_node(AST_GROUP);
         set_line(group);
@@ -118,7 +121,7 @@ ASTNode* parse_factor() {
     }
     else {
         if (peek()) {
-            printf("Error: unexpected token '%s'\n", peek()->value);
+            printf("Error at line %d: unexpected token '%s'\n", peek()->line, peek()->value);
             advance();
         }
         return NULL;
@@ -166,7 +169,8 @@ ASTNode* parse_import() {
             set_line(n);
             return n;
         } else {
-            printf("Error: expected string after 'import'\n");
+            printf("Error at line %d: expected string after 'import'\n", tokens[current - 1].line);
+            syntax_errors++;
             return NULL;
         }
     }
@@ -186,13 +190,15 @@ ASTNode* parse_variable_declaration() {
                 init = parse_expression();
             }
             if (!match(TOKEN_SYMBOL, ";")) {
-                printf("Error: expected ';' after variable declaration\n");
+                printf("Error at line %d: expected ';' after variable declaration\n", tokens[current - 1].line);
+                syntax_errors++;
             }
             ASTNode* n = create_variable_decl_node(type, name, init);
             set_line(n);
             return n;
         } else {
-            printf("Error: expected identifier\n");
+            printf("Error at line %d: expected identifier\n", tokens[current - 1].line);
+            syntax_errors++;
             return NULL;
         }
     }
@@ -204,7 +210,8 @@ ASTNode* parse_tickout() {
     if (match(TOKEN_KEYWORD, "tickout")) {
         ASTNode* expr = parse_expression();
         if (!match(TOKEN_SYMBOL, ";")) {
-            printf("Error: expected ';' after tickout\n");
+            printf("Error at line %d: expected ';' after tickout\n", tokens[current-1].line);
+            syntax_errors++;
         }
         ASTNode* n = create_tickout_node(expr);
         set_line(n);
@@ -219,13 +226,15 @@ ASTNode* parse_tickin() {
         if (match(TOKEN_IDENTIFIER, NULL)) {
             char* name = tokens[current - 1].value;
             if (!match(TOKEN_SYMBOL, ";")) {
-                printf("Error: expected ';' after tickin\n");
+                printf("Error at line %d: expected ';' after tickin\n", tokens[current-1].line);
+                syntax_errors++;
             }
             ASTNode* n = create_tickin_node(name);
             set_line(n);
             return n;
         } else {
-            printf("Error: expected identifier after tickin\n");
+            printf("Error at line %d: expected identifier after tickin\n", tokens[current-1].line);
+            syntax_errors++;
             return NULL;
         }
     }
@@ -240,7 +249,8 @@ ASTNode* parse_finish() {
             expr = parse_expression();
         }
         if (!match(TOKEN_SYMBOL, ";")) {
-            printf("Error: expected ';' after finish\n");
+            printf("Error at line %d: expected ';' after finish\n", tokens[current-1].line);
+            syntax_errors++;
         }
         ASTNode* n = create_finish_node(expr);
         set_line(n);
@@ -255,14 +265,16 @@ ASTNode* parse_when() {
         if (match(TOKEN_SYMBOL, "(")) {
             condition = parse_expression();
             if (!match(TOKEN_SYMBOL, ")")) {
-                printf("Error: expected ')' after when condition\n");
+                printf("Error at line %d: expected ')' after when condition\n", tokens[current-1].line);
+                syntax_errors++;
             }
         }
         ASTNode* body = NULL;
         if (match(TOKEN_SYMBOL, "{")) {
             body = parse_block();
             if (!match(TOKEN_SYMBOL, "}")) {
-                printf("Error: expected '}' after when block\n");
+                printf("Error at line %d: expected '}' after when block\n", tokens[current-1].line);
+                syntax_errors++;
             }
         }
         ASTNode* otherwise = NULL;
@@ -282,7 +294,8 @@ ASTNode* parse_otherwise() {
         if (match(TOKEN_SYMBOL, "{")) {
             body = parse_block();
             if (!match(TOKEN_SYMBOL, "}")) {
-                printf("Error: expected '}' after otherwise block\n");
+                printf("Error at line %d: expected '}' after otherwise block\n", tokens[current-1].line);
+                syntax_errors++;
             }
         }
         ASTNode* node = create_ast_node(AST_OTHERWISE);
@@ -300,14 +313,16 @@ ASTNode* parse_repeat() {
         if (match(TOKEN_SYMBOL, "(")) {
             condition = parse_expression();
             if (!match(TOKEN_SYMBOL, ")")) {
-                printf("Error: expected ')' after repeat condition\n");
+                printf("Error at line %d: expected ')' after repeat condition\n", tokens[current-1].line);
+                syntax_errors++;
             }
         }
         ASTNode* body = NULL;
         if (match(TOKEN_SYMBOL, "{")) {
             body = parse_block();
             if (!match(TOKEN_SYMBOL, "}")) {
-                printf("Error: expected '}' after repeat block\n");
+                printf("Error at line %d: expected '}' after repeat block\n", tokens[current-1].line);
+                syntax_errors++;
             }
         }
         ASTNode* n = create_repeat_node(condition, body);
@@ -342,13 +357,15 @@ ASTNode* parse_loop() {
                 }
             }
             if (!match(TOKEN_SYMBOL, ";")) {
-                printf("Error: expected ';' after loop initialization\n");
+                printf("Error at line %d: expected ';' after loop initialization\n", tokens[current-1].line);
+                syntax_errors++;
             }
             if (!check(TOKEN_SYMBOL, ";")) {
                 condition = parse_expression();
             }
             if (!match(TOKEN_SYMBOL, ";")) {
-                printf("Error: expected ';' in loop condition\n");
+                printf("Error at line %d: expected ';' in loop condition\n", tokens[current-1].line);
+                syntax_errors++;
             }
             if (!check(TOKEN_SYMBOL, ")")) {
                 if (peek()->type == TOKEN_IDENTIFIER && 
@@ -370,14 +387,16 @@ ASTNode* parse_loop() {
                 }
             }
             if (!match(TOKEN_SYMBOL, ")")) {
-                printf("Error: expected ')' after loop header\n");
+                printf("Error at line %d: expected ')' after loop header\n", tokens[current-1].line);
+                syntax_errors++;
             }
         }
         ASTNode* body = NULL;
         if (match(TOKEN_SYMBOL, "{")) {
             body = parse_block();
             if (!match(TOKEN_SYMBOL, "}")) {
-                printf("Error: expected '}' after loop block\n");
+                printf("Error at line %d: expected '}' after loop block\n", tokens[current-1].line);
+                syntax_errors++;
             }
         }
         ASTNode* n = create_loop_node(init, condition, increment, body);
@@ -471,13 +490,17 @@ ASTNode* parse_statement() {
     }
     
     ASTNode* expr = parse_expression();
-    if (match(TOKEN_SYMBOL, ";")) {
+    if (expr) {
+        if (!match(TOKEN_SYMBOL, ";")) {
+            printf("Error at line %d: expected ';' after expression\n", tokens[current-1].line);
+            syntax_errors++;
+        }
         ASTNode* stmt = create_ast_node(AST_EXPRESSION_STMT);
         set_line(stmt);
         stmt->expression = expr;
         return stmt;
     }
-    return expr;
+    return NULL;
 }
 
 ASTNode* parse_parameter_list() {
@@ -543,7 +566,8 @@ ASTNode* parse_startClock(char* return_type) {
         if (match(TOKEN_SYMBOL, "(")) {
             params = parse_parameter_list();
             if (!match(TOKEN_SYMBOL, ")")) {
-                printf("Error: expected ')' after startClock parameters\n");
+                printf("Error at line %d: expected ')' after startClock parameters\n", tokens[current-1].line);
+                syntax_errors++;
             }
             ASTNode* body = NULL;
             if (match(TOKEN_SYMBOL, "{")) {
@@ -570,7 +594,8 @@ ASTNode* parse_function() {
         int line = tokens[current-1].line;
         char* return_type = NULL;
         if (check(TOKEN_KEYWORD, "second") || check(TOKEN_KEYWORD, "minute") ||
-            check(TOKEN_KEYWORD, "moment") || check(TOKEN_KEYWORD, "flag")) {
+            check(TOKEN_KEYWORD, "moment") || check(TOKEN_KEYWORD, "flag") ||
+            check(TOKEN_KEYWORD, "void")) {
             return_type = tokens[current].value;
             advance();
         }
@@ -581,14 +606,15 @@ ASTNode* parse_function() {
             if (match(TOKEN_SYMBOL, "(")) {
                 params = parse_parameter_list();
                 if (!match(TOKEN_SYMBOL, ")")) {
-                    printf("Error: expected ')' after function parameters\n");
+                    printf("Error at line %d: expected ')' after function parameters\n", tokens[current-1].line);
                 }
             }
             ASTNode* body = NULL;
             if (match(TOKEN_SYMBOL, "{")) {
                 body = parse_block();
                 if (!match(TOKEN_SYMBOL, "}")) {
-                    printf("Error: expected '}' after function body\n");
+                    printf("Error at line %d: expected '}' after function body\n", tokens[current-1].line);
+                    syntax_errors++;
                 }
             }
             ASTNode* n = create_function_node(return_type, name, params, body);
@@ -629,7 +655,8 @@ ASTNode* parse_program() {
         }
         
         if ((check(TOKEN_KEYWORD, "second") || check(TOKEN_KEYWORD, "minute") ||
-             check(TOKEN_KEYWORD, "moment") || check(TOKEN_KEYWORD, "flag")) &&
+             check(TOKEN_KEYWORD, "moment") || check(TOKEN_KEYWORD, "flag") ||
+             check(TOKEN_KEYWORD, "void")) &&
             current + 1 < token_count &&
             tokens[current + 1].type == TOKEN_KEYWORD &&
             strcmp(tokens[current + 1].value, "startClock") == 0) {

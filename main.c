@@ -10,6 +10,7 @@ extern int scan_File(const char* filename);
 extern Token* get_tokens(void);
 extern int get_token_count(void);
 extern ASTNode* parse_program(void);
+extern int syntax_errors;
 
 static void print_tokens(Token* tokens, int count) {
     printf("\n=== TOKENS ===\n");
@@ -86,11 +87,16 @@ int main(int argc, char* argv[]) {
     printf("=== ABSTRACT SYNTAX TREE ===\n");
     print_ast(root, 0);
     
-    print_phase_header("SEMANTIC ANALYSIS");
-    int semantic_result = semantic_check(root);
+    int semantic_result = 0;
+    if (syntax_errors == 0) {
+        print_phase_header("SEMANTIC ANALYSIS");
+        semantic_result = semantic_check(root);
+    } else {
+        printf("\nSkipping semantic analysis due to syntax errors.\n");
+    }
     
     printf("\n=== COMPILATION SUMMARY ===\n");
-    if (semantic_result == 0) {
+    if (semantic_result == 0 && syntax_errors == 0) {
         printf("Status: SUCCESS\n");
         printf("All phases completed without errors.\n");
         
@@ -105,12 +111,13 @@ int main(int argc, char* argv[]) {
         }
     } else {
         printf("Status: FAILED\n");
-        printf("Semantic errors: %d\n", semantic_result);
+        if (syntax_errors > 0) printf("Syntax errors: %d\n", syntax_errors);
+        if (semantic_result > 0) printf("Semantic errors: %d\n", semantic_result);
     }
     printf("\n");
     
     free_ast(root);
     if (output_file) fclose(output_file);
     
-    return (semantic_result == 0) ? 0 : 1;
+    return (semantic_result == 0 && syntax_errors == 0) ? 0 : 1;
 }

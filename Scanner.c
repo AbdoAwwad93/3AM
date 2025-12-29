@@ -15,7 +15,7 @@ static int is_keyword(const char* word) {
     const char* keywords[] = {
         "startClock", "schedule", "tickout", "tickin", "when",
         "otherwise", "repeat", "loop", "finish", "timeline",
-        "import", "second", "minute", "moment", "flag",
+        "import", "second", "minute", "moment", "flag", "void",
         NULL
     };
     

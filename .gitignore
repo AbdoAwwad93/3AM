@@ -60,3 +60,4 @@ output.c
 
 # IDE application
 3am-ide/
+test_*

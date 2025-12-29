@@ -20,3 +20,4 @@ minute startClock() {
  tickout "Hello, " + name + "! Age = " + age;
  tickout "result of function call = "+add(1,2);
  finish 0;  
+}
