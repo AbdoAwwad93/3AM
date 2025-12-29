@@ -322,9 +322,9 @@ int generate_code(ASTNode* root, const char* output_filename) {
     fprintf(out, "#define __print_any(X) _Generic((X), int: __print_any_int, float: __print_any_float, char*: __print_any_str, default: __print_any_int)(X)\n");
 
     // C11 _Generic to scan
-    fprintf(out, "void __tickin_int(int* v) { scanf(\"%%d\", v); }\n");
-    fprintf(out, "void __tickin_float(float* v) { scanf(\"%%f\", v); }\n");
-    fprintf(out, "void __tickin_str(char** v) { char b[256]; scanf(\"%%255s\", b); *v = gc_strdup(b); }\n"); 
+    fprintf(out, "void __tickin_int(int* v) { fflush(stdout); scanf(\"%%d\", v); }\n");
+    fprintf(out, "void __tickin_float(float* v) { fflush(stdout); scanf(\"%%f\", v); }\n");
+    fprintf(out, "void __tickin_str(char** v) { fflush(stdout); char b[256]; scanf(\"%%255s\", b); *v = gc_strdup(b); }\n"); 
     fprintf(out, "#define __tickin(X) _Generic((X), int*: __tickin_int, float*: __tickin_float, char**: __tickin_str)(X)\n");
 
     // C11 _Generic to Add
