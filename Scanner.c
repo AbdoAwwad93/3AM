@@ -9,6 +9,7 @@
 
 Token tokens[MAX_TOKENS];
 int token_count = 0;
+static int current_line = 1;
 
 static int is_keyword(const char* word) {
     const char* keywords[] = {
@@ -33,6 +34,7 @@ static void add_token(TokenType type, const char* value) {
     }
     
     tokens[token_count].type = type;
+    tokens[token_count].line = current_line;
     strncpy(tokens[token_count].value, value, MAX_TOKEN_LENGTH - 1);
     tokens[token_count].value[MAX_TOKEN_LENGTH - 1] = '\0';
     token_count++;
@@ -46,10 +48,14 @@ int scan_File(const char* filename) {
     }
     
     token_count = 0;
+    current_line = 1;
     
     char ch;
     while ((ch = fgetc(file)) != EOF) {
-        if (isspace(ch)) continue;
+        if (isspace(ch)) {
+            if (ch == '\n') current_line++;
+            continue;
+        }
         
         if (ch == '#') {
             char buffer[MAX_TOKEN_LENGTH] = {0};
@@ -57,6 +63,7 @@ int scan_File(const char* filename) {
             while ((ch = fgetc(file)) != '\n' && ch != EOF && i < MAX_TOKEN_LENGTH - 1) {
                 buffer[i++] = ch;
             }
+            if (ch == '\n') current_line++;
             buffer[i] = '\0';
             add_token(TOKEN_COMMENT, buffer);
         }
@@ -64,6 +71,7 @@ int scan_File(const char* filename) {
             char buffer[MAX_TOKEN_LENGTH] = {0};
             int i = 0;
             while ((ch = fgetc(file)) != '"' && ch != EOF && i < MAX_TOKEN_LENGTH - 1) {
+                if (ch == '\n') current_line++;
                 buffer[i++] = ch;
             }
             buffer[i] = '\0';

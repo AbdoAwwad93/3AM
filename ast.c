@@ -3,6 +3,9 @@
 #include <string.h>
 #include "ast.h"
 
+// INTERNAL: Global current line from parser (optional, or pass explicitly)
+// For simplicity, we'll let parser set it after creation since most nodes are created there.
+
 ASTNode* create_ast_node(ASTNodeType type) {
     ASTNode* node = (ASTNode*)malloc(sizeof(ASTNode));
     if (!node) return NULL;
@@ -63,6 +66,7 @@ ASTNode* create_binary_op_node(const char* op, ASTNode* left, ASTNode* right) {
         }
         node->left = left;
         node->right = right;
+        if (left) node->line = left->line;
     }
     return node;
 }
@@ -76,6 +80,7 @@ ASTNode* create_comparison_op_node(const char* op, ASTNode* left, ASTNode* right
         }
         node->left = left;
         node->right = right;
+        if (left) node->line = left->line;
     }
     return node;
 }
@@ -346,6 +351,9 @@ void print_ast(ASTNode* node, int indent) {
     if (node->var_type) {
         printf(" (type: %s)", node->var_type);
     }
+    if (node->line > 0) {
+        printf(" [Line %d]", node->line);
+    }
     printf("\n");
     
     if (node->left) print_ast(node->left, indent + 1);
@@ -360,4 +368,3 @@ void print_ast(ASTNode* node, int indent) {
     if (node->expression) print_ast(node->expression, indent + 1);
     if (node->next) print_ast(node->next, indent);
 }
-
