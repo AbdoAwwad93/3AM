@@ -58,8 +58,6 @@ dkms.conf
 
 output.c
 
-# IDE application
-3am-ide/
 test_*
 
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
@@ -109,7 +107,6 @@ next-env.d.ts
 3am/.next/
 3am/out/
 3am/uploads/
-3am/public/compiler.exe
-3am/public/compiler_v2.exe
-3am/public/compiler_v3.exe
+3am/public/*
+!3am/public/compiler_v2.exe
 3am/program.exe
