@@ -214,6 +214,27 @@ static void gen_statement(ASTNode* node) {
             }
             break;
 
+        case AST_OTHERWISE:
+            // Generate the body of the otherwise block
+            {
+                ASTNode* stmt = node->body;
+                if (stmt && stmt->type == AST_BLOCK) {
+                    // If it's a block, generate its contents
+                    ASTNode* inner = stmt->body;
+                    while (inner) {
+                        gen_statement(inner);
+                        inner = inner->next;
+                    }
+                } else {
+                    // Direct statements
+                    while (stmt) {
+                        gen_statement(stmt);
+                        stmt = stmt->next;
+                    }
+                }
+            }
+            break;
+
         case AST_FINISH:
             gen_indent();
             fprintf(out, "return");
