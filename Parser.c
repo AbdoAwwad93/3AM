@@ -69,7 +69,23 @@ ASTNode* parse_parameter_list();
 
 // Expression parsing (handles arithmetic and comparisons)
 ASTNode* parse_factor() {
-    if (match(TOKEN_NUMBER, NULL)) {
+    // Handle pre-increment and pre-decrement
+    if (check(TOKEN_SYMBOL, "++") || check(TOKEN_SYMBOL, "--")) {
+        char* op = tokens[current].value;
+        advance();  // consume ++ or --
+        if (match(TOKEN_IDENTIFIER, NULL)) {
+            char* name = tokens[current - 1].value;
+            ASTNode* operand = create_identifier_node(name);
+            ASTNode* n = create_unary_op_node(op, operand, 1);  // 1 = prefix
+            set_line(n);
+            return n;
+        } else {
+            printf("Error at line %d: expected identifier after '%s'\n", tokens[current - 1].line, op);
+            syntax_errors++;
+            return NULL;
+        }
+    }
+    else if (match(TOKEN_NUMBER, NULL)) {
         ASTNode* n = create_number_node(tokens[current - 1].value);
         set_line(n);
         return n;
@@ -103,9 +119,19 @@ ASTNode* parse_factor() {
             n->line = line;
             return n;
         } else {
-            ASTNode* n = create_identifier_node(name);
-            n->line = line;
-            return n;
+            // Check for post-increment or post-decrement
+            if (check(TOKEN_SYMBOL, "++") || check(TOKEN_SYMBOL, "--")) {
+                char* op = tokens[current].value;
+                advance();  // consume ++ or --
+                ASTNode* operand = create_identifier_node(name);
+                ASTNode* n = create_unary_op_node(op, operand, 0);  // 0 = postfix
+                n->line = line;
+                return n;
+            } else {
+                ASTNode* n = create_identifier_node(name);
+                n->line = line;
+                return n;
+            }
         }
     }
     else if (match(TOKEN_SYMBOL, "(")) {
@@ -368,23 +394,7 @@ ASTNode* parse_loop() {
                 syntax_errors++;
             }
             if (!check(TOKEN_SYMBOL, ")")) {
-                if (peek()->type == TOKEN_IDENTIFIER && 
-                    current + 1 < token_count &&
-                    tokens[current + 1].type == TOKEN_SYMBOL &&
-                    strcmp(tokens[current + 1].value, "+") == 0 &&
-                    current + 2 < token_count &&
-                    tokens[current + 2].type == TOKEN_SYMBOL &&
-                    strcmp(tokens[current + 2].value, "+") == 0) {
-                    advance(); 
-                    char* name = tokens[current - 1].value;
-                    advance(); 
-                    advance(); 
-                    ASTNode* id = create_identifier_node(name);
-                    ASTNode* one = create_number_node("1");
-                    increment = create_binary_op_node("+", id, one);
-                } else {
-                    increment = parse_expression();
-                }
+                increment = parse_expression();
             }
             if (!match(TOKEN_SYMBOL, ")")) {
                 printf("Error at line %d: expected ')' after loop header\n", tokens[current-1].line);

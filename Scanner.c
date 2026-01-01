@@ -130,6 +130,13 @@ int scan_File(const char* filename) {
                 } else {
                     ungetc(next, file);
                 }
+            } else if (ch == '-') {
+                char next = fgetc(file);
+                if (next == '-') {
+                    symbol[1] = next;
+                } else {
+                    ungetc(next, file);
+                }
             }
             
             add_token(TOKEN_SYMBOL, symbol);

@@ -94,6 +94,29 @@ static void gen_expression(ASTNode* node) {
             fprintf(out, ")");
             break;
 
+        case AST_UNARY_OP:
+            {
+                // Check if it's prefix or postfix by checking the value
+                int is_prefix = (strstr(node->value, "_post") == NULL);
+                if (is_prefix) {
+                    // Pre-increment or pre-decrement: ++x or --x
+                    fprintf(out, "%s", node->value);
+                    gen_expression(node->left);
+                } else {
+                    // Post-increment or post-decrement: x++ or x--
+                    // Remove "_post" suffix
+                    char op[4] = {0};
+                    if (strstr(node->value, "++") != NULL) {
+                        strcpy(op, "++");
+                    } else if (strstr(node->value, "--") != NULL) {
+                        strcpy(op, "--");
+                    }
+                    gen_expression(node->left);
+                    fprintf(out, "%s", op);
+                }
+            }
+            break;
+
         default:
             fprintf(out, "/* Expr %d */", node->type);
     }
@@ -167,6 +190,18 @@ static void gen_statement(ASTNode* node) {
             } else {
                 fprintf(out, "\n");
             }
+            break;
+
+        case AST_REPEAT:
+            gen_indent();
+            fprintf(out, "while (");
+            gen_expression(node->condition);
+            fprintf(out, ") {\n");
+            indentation++;
+            gen_statement(node->body);
+            indentation--;
+            gen_indent();
+            fprintf(out, "}\n");
             break;
 
         case AST_LOOP:

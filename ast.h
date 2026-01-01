@@ -81,6 +81,7 @@ ASTNode* create_number_node(const char* value);
 ASTNode* create_string_node(const char* value);
 ASTNode* create_binary_op_node(const char* op, ASTNode* left, ASTNode* right);
 ASTNode* create_comparison_op_node(const char* op, ASTNode* left, ASTNode* right);
+ASTNode* create_unary_op_node(const char* op, ASTNode* operand, int is_prefix);
 ASTNode* create_function_call_node(const char* name, ASTNode* args);
 ASTNode* create_variable_decl_node(const char* type, const char* name, ASTNode* init);
 ASTNode* create_assignment_node(const char* name, ASTNode* value);

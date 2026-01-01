@@ -213,7 +213,24 @@ static Type check_expression(ASTNode *node) {
             return check_expression(node->expression);
         
         case AST_UNARY_OP:
-            return TYPE_UNKNOWN;
+            {
+                // For increment/decrement, check operand type
+                Type operand_type = check_expression(node->left);
+                if (operand_type == TYPE_UNKNOWN) {
+                    return TYPE_UNKNOWN;
+                }
+                // Increment/decrement only work on numeric types
+                if (node->value && (strcmp(node->value, "++") == 0 || strstr(node->value, "++") != NULL ||
+                                    strcmp(node->value, "--") == 0 || strstr(node->value, "--") != NULL)) {
+                    if (operand_type != TYPE_INTEGER && operand_type != TYPE_FLOAT) {
+                        report_error(node, "increment/decrement operator requires numeric type (second or minute)");
+                        return TYPE_UNKNOWN;
+                    }
+                    // Result type is same as operand
+                    return operand_type;
+                }
+                return operand_type;
+            }
         
         default:
             return TYPE_UNKNOWN;

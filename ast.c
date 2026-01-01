@@ -85,6 +85,28 @@ ASTNode* create_comparison_op_node(const char* op, ASTNode* left, ASTNode* right
     return node;
 }
 
+ASTNode* create_unary_op_node(const char* op, ASTNode* operand, int is_prefix) {
+    ASTNode* node = create_ast_node(AST_UNARY_OP);
+    if (node) {
+        if (op) {
+            node->value = (char*)malloc(strlen(op) + 1);
+            strcpy(node->value, op);
+        }
+        node->left = operand;  // Use left for the operand
+        node->right = NULL;
+        // Store is_prefix in a way we can access it - we'll use a custom field or encode in value
+        // For simplicity, we'll encode it: "++" for prefix, "++post" for postfix
+        if (!is_prefix && op) {
+            char* new_value = (char*)malloc(strlen(op) + 5);
+            sprintf(new_value, "%s_post", op);
+            free(node->value);
+            node->value = new_value;
+        }
+        if (operand) node->line = operand->line;
+    }
+    return node;
+}
+
 ASTNode* create_function_call_node(const char* name, ASTNode* args) {
     ASTNode* node = create_ast_node(AST_FUNCTION_CALL);
     if (node) {

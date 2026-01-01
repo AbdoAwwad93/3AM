@@ -11,13 +11,13 @@ minute startClock() {
  
  tickout "Enter your age: ";
  tickin age;
- when(age>=5){
-    tickout "your age is bigger";
+ when(age>=20){
+    tickout "your age is more than 20, HI Man";
  }
  otherwise{
-    tickout "your name is small "+"HI";
+    tickout "your age is small , Hi Kid";
  }
  tickout "Hello, " + name + "! Age = " + age;
  tickout "result of function call = "+add(1,2);
  finish 0;  
-}
+}  
